@@ -1,0 +1,82 @@
+#!/bin/bash
+echo "################################################"
+echo "  Blockchain quick installation shell script.... "
+echo "  version:1.0 "
+echo "################################################"
+REPOIP=139.9.199.71
+cd /
+echo -e "\033[31m install os packets......... \033[0m"
+yum install gzip git curl wget vim epel-release jq unzip -y
+echo -e "\033[31m install os packets success \033[0m"
+sleep 5
+echo -e "\033[31m install docker......... \033[0m"
+yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+sed -i 's/download.docker.com/mirrors.aliyun.com\/docker-ce/g' /etc/yum.repos.d/docker-ce.repo
+yum install -y docker-ce docker-ce-cli containerd.io
+wget http://$REPOIP/docker-compose-linux-x86_64
+mv docker-compose-linux-x86_64 docker-compose
+chmod +x docker-compose
+mv docker-compose /usr/bin
+mkdir -p /etc/docker
+tee /etc/docker/daemon.json <<-'EOF'
+{
+  "registry-mirrors": ["https://c0rfgcri.mirror.aliyuncs.com"]
+}
+EOF
+systemctl daemon-reload
+systemctl restart docker
+echo -e "\033[31m install docker success \033[0m"
+sleep 1
+echo -e "\033[31m install fabric......... \033[0m"
+sleep 5
+curl -O http://$REPOIP/go1.18.7.linux-amd64.tar.gz
+tar -C /usr/local -xzf go1.18.7.linux-amd64.tar.gz
+
+PROFILE=/etc/profile
+echo "export GOROOT=/usr/local/go">>/etc/profile
+echo "export GOBIN=\$GOROOT/bin">>/etc/profile
+echo "export PATH=\$PATH:\$GOBIN">>/etc/profile
+source /etc/profile
+
+go env -w GOPROXY=https://goproxy.cn,direct
+go env -w GO111MODULE=on
+
+wget http://$REPOIP/fabric-samples.zip
+unzip fabric-samples.zip
+chmod -R +x fabric-samples
+wget http://$REPOIP/install-fabric.sh 
+
+chmod +x install-fabric.sh 
+./install-fabric.sh d
+
+
+echo "export FABRIC_HOME=/fabric-samples/bin">>/etc/profile
+echo "PATH=\$PATH:\$FABRIC_HOME">>/etc/profile
+source /etc/profile
+
+cd /
+mkdir /fabric-samples/chaincode/paintcode
+wget http://$REPOIP/02ChainCode.zip
+unzip 02ChainCode.zip
+mv /02ChainCode/*.go /fabric-samples/chaincode/paintcode
+cd /fabric-samples/chaincode/paintcode
+go mod init paint 
+go mod tidy 
+go mod vendor
+
+/fabric-samples/test-network/network.sh up
+/fabric-samples/test-network/network.sh createChannel -c mychannel
+/fabric-samples/test-network/network.sh deployCC -c mychannel -ccn chaincode5 -ccp /fabric-samples/chaincode/paintcode -ccl go
+
+#---installl SDK----
+cd /
+wget http://$REPOIP/paintsdk.zip
+unzip paintsdk.zip
+chmod +x /paintsdk/paintsdk
+ln -s /paintsdk/sdk.yaml /etc/sdk.yaml
+firewall-cmd --zone=public --add-port=9099/tcp --permanent
+iptables -A INPUT -p tcp --dport 9099 -j ACCEPT
+echo "################################################"
+echo "   install success ,please use /paintsdk/paintsdk start sdk "
+echo "################################################"
+# /paintsdk/paintsdk
